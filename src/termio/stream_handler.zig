@@ -1092,8 +1092,32 @@ pub const StreamHandler = struct {
             .fresh_line,
             .fresh_line_new_prompt,
             .new_command,
-            .prompt_start,
             => {},
+
+            .prompt_start => {
+                // Reset modes that applications may have left active on exit.
+                // This handles apps that enable mouse reporting, kitty keyboard
+                // protocol, etc. but crash or exit without sending the
+                // corresponding disable sequences.
+                if (self.terminal.flags.mouse_event != .none) {
+                    self.terminal.flags.mouse_event = .none;
+                    self.terminal.modes.set(.mouse_event_x10, false);
+                    self.terminal.modes.set(.mouse_event_normal, false);
+                    self.terminal.modes.set(.mouse_event_button, false);
+                    self.terminal.modes.set(.mouse_event_any, false);
+                    try self.setMouseShape(.text);
+                }
+                if (self.terminal.flags.mouse_format != .x10) {
+                    self.terminal.flags.mouse_format = .x10;
+                    self.terminal.modes.set(.mouse_format_utf8, false);
+                    self.terminal.modes.set(.mouse_format_sgr, false);
+                    self.terminal.modes.set(.mouse_format_urxvt, false);
+                    self.terminal.modes.set(.mouse_format_sgr_pixels, false);
+                }
+                if (self.terminal.screens.active.kitty_keyboard.current().int() != 0) {
+                    self.terminal.screens.active.kitty_keyboard = .{};
+                }
+            },
         }
 
         // We do this last so failures are still processed correctly
